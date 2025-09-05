@@ -1,4 +1,4 @@
-<div align=center>  # uniapp-markdown-streaming ✨ </div>
+<h1 align=center> ✨ uniapp-markdown-streaming ✨ </h1>
 <div align=center>  高性能 Markdown 流式渲染 uni-app 插件  </div>
 
 **🚧 开发中...**
