@@ -42,7 +42,7 @@ onMounted(() => {
   let count = 0;
   setInterval(() => {
     count++;
-    if (count > 100) return;
+    if (count > 10) return;
     smsRef.value.write(`
 ### 这是第${count}个标题 $\\frac{1}{2}$
 块级复杂公式 \`const a = 1\`：
@@ -61,7 +61,7 @@ console.log(sum(a, b));
 \`\`\`
 
 `);
-  }, 20);
+  }, 500);
 });
 </script>
 
