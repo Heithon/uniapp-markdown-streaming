@@ -186,16 +186,10 @@ export default {
           return;
         }
       }
-      // markdown-it解析可以进行预处理
+      console.log('this.config.preProcessText', this.config)
       if(!this.config.isStreamingParse) {
         // markdown-it 全量解析
-        if(this.config.preProcessText && typeof this.config.preProcessText === 'function') {
-          try {
-            this.fullText = this.config.preProcessText(this.fullText);
-          } catch (error) {
-            console.error('预处理文本失败', error);
-          }
-        }
+        // todo 预处理
         this.renderContent(newChunk);
       } else {
         // 流式解析
