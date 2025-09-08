@@ -107,7 +107,8 @@ import MarkdownIt from "./lib/markdown-it.min.js";
 import hljs from "./lib/highlight/uni-highlight.min.js";
 import katex from "./lib/katex/katex.mjs";
 import * as smd from "./lib/smd.min.js"
-import { isTextOnlyShallow } from "./utils/index.js";
+import { isTextOnlyShallow, getCodeInfo, hasParent } from "./utils/index.js";
+import MarkdownItKatex from "./lib/markdown-it-katex.js";
 // h5中直接执行脚本挂在到全局对象
 // #ifdef H5
 import "./lib/markdown-it-incremental-dom/markdown-it-incremental-dom.js";
@@ -152,15 +153,11 @@ export default {
         isTargetIdUpdated: false,
         isSourceUpdated: false,
         isShowLineUpdated: false,
-      }
+      },
+      escapeHtml: new window.MarkdownIt({}).utils.escapeHtml,
     }
   },
   mounted() {
-    // this.initMarkdownParser();
-    console.log('smd', smd.default_renderer)
-    console.log('DOMPurify', DOMPurify)
-    console.log('this.config', this.config.isPurify)
-    // this.setTargetId(this.targetId, null, this, this);
   },
   methods: {
     tryInitMarkdownParser() {
@@ -263,6 +260,49 @@ export default {
         }
       }
     },
+    highlight(str, lang) {
+      let preCode = "";
+      try {
+        preCode = window.hljs.highlightAuto(str).value;
+      } catch (err) {
+        preCode = this.escapeHtml(str);
+      }
+      const lines = preCode.split(/\n/).slice(0, -1);
+      let html = lines
+        .map((item, index) => {
+          if (item == "") {
+            return "";
+          }
+          return (
+            '<li><span class="line-num" data-line="' +
+            (index + 1) +
+            '"></span>' +
+            item +
+            "</li>"
+          );
+        })
+        .join("");
+      if (this.showLineValue) {
+        html = '<ol style="padding: 0px 30px;">' + html + "</ol>";
+      } else {
+        html = '<ol style="padding: 0px 7px;list-style:none;">' + html + "</ol>";
+      }
+      this.copyCodeData.push(str); // copyCodeData is managed by renderjs
+      let htmlCode = `<div class="markdown-wrap">`;
+      htmlCode += `<div style="color: #aaa;text-align: right;font-size: 12px;padding:8px;">`;
+      htmlCode += `${lang}<a class="copy-btn" code-data-index="${
+        this.copyCodeData.length - 1
+      }" style="margin-left: 8px;">复制代码</a>`;
+      htmlCode += `</div>`;
+      if (str.trim().length > 0) {
+        htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;"><code>${html}</code></pre>`;
+        // htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;">${html}</pre>`;
+      } else {
+        htmlCode += `<pre class="hljs" style="display: none;"></pre>`;
+      }
+      htmlCode += "</div>";
+      return htmlCode;
+    },
     /**
      * 初始化Markdown解析器
      */
@@ -276,62 +316,30 @@ export default {
         this.markdownParser = smd.parser(renderer);
         console.log('this.markdownParser', this.markdownParser)
       } else {
+        try {
         this.markdownParser = new window.MarkdownIt({
           html: true,
-          highlight: (str, lang) => {
-            let preCode = "";
-            try {
-              preCode = window.hljs.highlightAuto(str).value;
-            } catch (err) {
-              preCode = this.markdownParser.utils.escapeHtml(str);
-            }
-            const lines = preCode.split(/\n/).slice(0, -1);
-            let html = lines
-              .map((item, index) => {
-                if (item == "") {
-                  return "";
-                }
-                return (
-                  '<li><span class="line-num" data-line="' +
-                  (index + 1) +
-                  '"></span>' +
-                  item +
-                  "</li>"
-                );
-              })
-              .join("");
-            if (this.showLineValue) {
-              html = '<ol style="padding: 0px 30px;">' + html + "</ol>";
-            } else {
-              html = '<ol style="padding: 0px 7px;list-style:none;">' + html + "</ol>";
-            }
-            this.copyCodeData.push(str); // copyCodeData is managed by renderjs
-            let htmlCode = `<div class="markdown-wrap">`;
-            htmlCode += `<div style="color: #aaa;text-align: right;font-size: 12px;padding:8px;">`;
-            htmlCode += `${lang}<a class="copy-btn" code-data-index="${
-              this.copyCodeData.length - 1
-            }" style="margin-left: 8px;">复制代码</a>`;
-            htmlCode += `</div>`;
-            if (str.trim().length > 0) {
-              htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;"><code>${html}</code></pre>`;
-              // htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;">${html}</pre>`;
-            } else {
-              htmlCode += `<pre class="hljs" style="display: none;"></pre>`;
-            }
-            htmlCode += "</div>";
-            return htmlCode;
-          },
-          // #ifdef H5
-        }).use(markdownitIncrementalDOM, IncrementalDOM);
+          highlight: this.highlight,
+        })
+        .use(MarkdownItKatex, {
+          katex: window.katex,
+        })
+         // #ifdef H5
+        .use(markdownitIncrementalDOM, IncrementalDOM)
         // #endif
         // #ifdef APP-PLUS
-        }).use(MarkdownItIncrementalDOM, IncrementalDOM);
+        .use(MarkdownItIncrementalDOM, IncrementalDOM)
         // #endif
+        } catch (err) {
+          console.error('MarkdownItKatex rendering error:', err);
+        }
       }
     },
     renderContentSmd(chunk) {
       smd.parser_write(this.markdownParser, chunk)
       this.applyLaTeX();
+      this.applyHighlight();
+      this.applyTableBox();
     },
     renderContent() {
       const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now(); // 记录开始时间
@@ -349,7 +357,7 @@ export default {
       this.copyCodeData = []; // 重置复制数据
       let value = this.fullText;
 
-            // --- 开始处理markdown ---
+      // --- 开始处理markdown ---
       // 保护表格中的<br>标签，避免被替换成换行符导致表格截断
       const tableBrPlaceholders = [];
 
@@ -370,77 +378,6 @@ export default {
       value = value.replace(/<br>|<br\/>|<br \/>/g, "\n");
       value = value.replace(/&nbsp;/g, " ");
 
-      // 保护代码块
-      const codeBlocks = [];
-      const inlineCodeBlocks = [];
-
-      value = value.replace(/```[\s\S]*?```/g, (match) => {
-        const id = `CODE_BLOCK_${codeBlocks.length}`;
-        codeBlocks.push(match);
-        return id;
-      });
-
-      value = value.replace(/`[^`]*`/g, (match) => {
-        const id = `INLINE_CODE_${inlineCodeBlocks.length}`;
-        inlineCodeBlocks.push(match);
-        return id;
-      });
-
-      // 处理块级公式
-      value = value.replace(/\$\$([\s\S]*?)\$\$/g, (match, p1) => {
-        const formula = p1.trim();
-        const cacheKey = `block||${formula}`; // 使用 'block||' 作为块级公式的前缀
-        if (this.katexCache[cacheKey]) {
-          // console.log('命中缓存: ', cacheKey)
-          return this.katexCache[cacheKey];
-        }
-        try {
-          const renderedHtml = window.katex.renderToString(formula, {
-            displayMode: true,
-            throwOnError: false
-          });
-          this.katexCache[cacheKey] = renderedHtml;
-          return renderedHtml;
-        } catch (err) {
-          console.error('KaTeX rendering error (block):', err);
-          return match; // 发生错误时返回原始匹配
-        }
-      });
-
-      // 处理行内公式
-      value = value.replace(/\$([^$]+?)\$/g, (match, p1) => {
-        const trimmedContent = p1.trim();
-        if (!trimmedContent || /^\d+(\.\d+)?$/.test(trimmedContent)) {
-          return match;
-        }
-        const cacheKey = `inline||${trimmedContent}`; // 使用 'inline||' 作为行内公式的前缀
-        if (this.katexCache[cacheKey]) {
-          // console.log('命中缓存: ', cacheKey)
-          return this.katexCache[cacheKey];
-        }
-        try {
-          const renderedHtml = window.katex.renderToString(trimmedContent, {
-            displayMode: false,
-            throwOnError: false
-          });
-          this.katexCache[cacheKey] = renderedHtml;
-          return renderedHtml;
-        } catch (err) {
-          console.error('KaTeX rendering error (inline):', err);
-          return match; // 发生错误时返回原始匹配
-        }
-      });
-
-      // 恢复行内代码块
-      inlineCodeBlocks.forEach((block, index) => {
-        value = value.replace(`INLINE_CODE_${index}`, block);
-      });
-
-      // 恢复多行代码块
-      codeBlocks.forEach((block, index) => {
-        value = value.replace(`CODE_BLOCK_${index}`, block);
-      });
-
       // 恢复表格中的<br>标签
       tableBrPlaceholders.forEach((br, index) => {
         value = value.replace(`__TABLE_BR_${index}__`, br);
@@ -451,7 +388,6 @@ export default {
       // 偶数个```，末尾加上\n
       if (value.split("```").length % 2) {
         let mdtext = value;
-        // console.log('mdtext: ', mdtext)
         if (mdtext[mdtext.length - 1] != "\n") {
           mdtext += "\n";
         }
@@ -460,17 +396,13 @@ export default {
             this.targetMdElement,
             this.markdownParser.renderToIncrementalDOM(mdtext)
           )
-          // htmlString = this.markdownParser.render(mdtext)
       } else {
         // 使用增量dom渲染
         IncrementalDOM.patch(
             this.targetMdElement,
             this.markdownParser.renderToIncrementalDOM(value)
           )
-        // htmlString = this.markdownParser.render(value)
       }
-
-      // this.targetMdElement.innerHTML = htmlString
 
       // 表格标签添加类名，修复表格样式
       if (this.targetMdElement) {
@@ -515,19 +447,41 @@ export default {
           return;
         }
         katex.render(el.textContent, el, {
-          displayMode: false,  // Inline mode
-          throwOnError: false  // Optional: Don't throw errors on invalid LaTeX
+          displayMode: false,
+          throwOnError: false
         });
       });
-      // Manually render block math in <equation-block> tags
       this.targetMdElement.querySelectorAll('equation-block').forEach(el => {
         if(!isTextOnlyShallow(el)) {
           return;
         }
         katex.render(el.textContent, el, {
-          displayMode: true,   // Display (block) mode
-          throwOnError: false  // Optional: Don't throw errors on invalid LaTeX
+          displayMode: true,
+          throwOnError: false
         });
+      });
+    },
+    applyHighlight() {
+      this.targetMdElement.querySelectorAll('pre').forEach(el => {
+        const res = getCodeInfo(el)
+        if(res.isPending) {
+          const result = this.highlight(res.str, res.lang)
+          const newEl = document.createElement('div');
+          newEl.innerHTML = result;
+          el.replaceWith(newEl);
+        }
+      });
+    },
+    applyTableBox() {
+      this.targetMdElement.querySelectorAll('table').forEach(el => {
+        console.log('el', el)
+        if(hasParent(el, 'table-box')) {
+          return;
+        }
+        const tableBox = document.createElement('div');
+        tableBox.classList.add('table-box');
+        el.parentNode.insertBefore(tableBox, el);
+        tableBox.appendChild(el);
       });
     },
     /**
@@ -938,6 +892,7 @@ export default {
       .table-box {
         width: 100%;
         overflow-x: auto;
+        table,
         .table {
           min-width: 100%;
           max-width: none;

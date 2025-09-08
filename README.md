@@ -13,7 +13,7 @@
 
 前者历史悠久，且有着相当丰富的生态，可扩展性强，解决方案多。但是在**流式解析**场景下有诸多局限。比如在 LLM 项目中，若使用 markdown-it 之类的传统 markdown 解析库来处理流式数据，都是将新接收到的 chunk 拼接到已有字符串中，组成完整的字符再做全量解析。因此每个 chunk 到达时，都会进行一次全量解析，好在 markdown-it 的解析速度够快，所以一般情况是够用的。
 
-得益于[最佳实践](https://developer.chrome.com/docs/ai/render-llm-responses?hl=zh-cn)，本项目添加了 streaming-markdown，它内部维护了一个状态机和缓存层，能进行增量解析，大大提高了流式场景下的性能。但是这个库还非常年轻，使用也不广泛，因此才作为附加选项集成进来。
+得益于[最佳实践](https://developer.chrome.com/docs/ai/render-llm-responses?hl=zh-cn)，本项目添加了 streaming-markdown，它内部维护了一个状态机和缓存层，能进行增量解析，大大提高了流式场景下的性能。<span style="color: red;">（这个库还存在大量 bug，尤其是对表格的解析，作者似乎许久不维护了，先搁置下，后面自己想想办法）</span>
 
 ### 渲染优化
 
