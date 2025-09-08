@@ -108,6 +108,7 @@ import hljs from "./lib/highlight/uni-highlight.min.js";
 import katex from "./lib/katex/katex.mjs";
 import * as smd from "./lib/smd.min.js"
 import { isTextOnlyShallow } from "./utils/index.js";
+import MarkdownItKatex from "./lib/markdown-it-katex.js";
 // h5中直接执行脚本挂在到全局对象
 // #ifdef H5
 import "./lib/markdown-it-incremental-dom/markdown-it-incremental-dom.js";
@@ -118,7 +119,6 @@ import './lib/purify.min.js';
 import DOMPurify from './lib/purify.min.js';
 import MarkdownItIncrementalDOM from "./lib/markdown-it-incremental-dom/markdown-it-incremental-dom.js";
 import IncrementalDOM from "./lib/incremental-dom/incremental-dom.js";
-import math from './lib/markdown-it-math-lite.js';
 // #endif
 
 // 确保将需要的库暴露到全局
@@ -277,6 +277,7 @@ export default {
         this.markdownParser = smd.parser(renderer);
         console.log('this.markdownParser', this.markdownParser)
       } else {
+        try {
         this.markdownParser = new window.MarkdownIt({
           html: true,
           highlight: (str, lang) => {
@@ -322,37 +323,19 @@ export default {
             htmlCode += "</div>";
             return htmlCode;
           },
-          // #ifdef H5
-        }).use(markdownitIncrementalDOM, IncrementalDOM)
+        })
+        .use(MarkdownItKatex, {
+          katex: window.katex,
+        })
+         // #ifdef H5
+        .use(markdownitIncrementalDOM, IncrementalDOM)
         // #endif
         // #ifdef APP-PLUS
-        }).use(MarkdownItIncrementalDOM, IncrementalDOM)
+        .use(MarkdownItIncrementalDOM, IncrementalDOM)
         // #endif
-        // .use(math, {
-        //   tagInline: 'equation-inline',
-        //   tagBlock: 'equation-block',
-        //   allowInlineDouble: false, // 也可 true
-        // })
-
-        // 行内
-        this.markdownParser.renderer.rules.math_inline = (tokens, idx) => {
-          const c = tokens[idx].content;
-          // 注意：此处不返回字符串，而是直接写入 DOM
-          IncrementalDOM.elementOpen('equation-inline');
-          IncrementalDOM.text(c); // 内容已是纯文本，若需要可在生成 token 时保留原样
-          IncrementalDOM.elementClose('equation-inline');
-          return ''; // Incremental DOM 渲染器期望返回空字符串
-        };
-
-        // 块级
-        this.markdownParser.renderer.rules.math_block = (tokens, idx) => {
-          const c = tokens[idx].content;
-          IncrementalDOM.elementOpen('equation-block');
-          IncrementalDOM.text(c);
-          IncrementalDOM.elementClose('equation-block');
-          // 通常块级末尾换行由布局控制；如需可额外输出 <br> 或保持空字符串
-          return '';
-        };
+        } catch (err) {
+          console.error('MarkdownItKatex rendering error:', err);
+        }
       }
     },
     renderContentSmd(chunk) {
@@ -395,77 +378,6 @@ export default {
       // 现在可以安全地替换其他地方的<br>标签
       value = value.replace(/<br>|<br\/>|<br \/>/g, "\n");
       value = value.replace(/&nbsp;/g, " ");
-
-      // 保护代码块
-      const codeBlocks = [];
-      const inlineCodeBlocks = [];
-
-      value = value.replace(/```[\s\S]*?```/g, (match) => {
-        const id = `CODE_BLOCK_${codeBlocks.length}`;
-        codeBlocks.push(match);
-        return id;
-      });
-
-      value = value.replace(/`[^`]*`/g, (match) => {
-        const id = `INLINE_CODE_${inlineCodeBlocks.length}`;
-        inlineCodeBlocks.push(match);
-        return id;
-      });
-
-      // // 处理块级公式
-      // value = value.replace(/\$\$([\s\S]*?)\$\$/g, (match, p1) => {
-      //   const formula = p1.trim();
-      //   const cacheKey = `block||${formula}`; // 使用 'block||' 作为块级公式的前缀
-      //   if (this.katexCache[cacheKey]) {
-      //     // console.log('命中缓存: ', cacheKey)
-      //     return this.katexCache[cacheKey];
-      //   }
-      //   try {
-      //     const renderedHtml = window.katex.renderToString(formula, {
-      //       displayMode: true,
-      //       throwOnError: false
-      //     });
-      //     this.katexCache[cacheKey] = renderedHtml;
-      //     return renderedHtml;
-      //   } catch (err) {
-      //     console.error('KaTeX rendering error (block):', err);
-      //     return match; // 发生错误时返回原始匹配
-      //   }
-      // });
-
-      // // 处理行内公式
-      // value = value.replace(/\$([^$]+?)\$/g, (match, p1) => {
-      //   const trimmedContent = p1.trim();
-      //   if (!trimmedContent || /^\d+(\.\d+)?$/.test(trimmedContent)) {
-      //     return match;
-      //   }
-      //   const cacheKey = `inline||${trimmedContent}`; // 使用 'inline||' 作为行内公式的前缀
-      //   if (this.katexCache[cacheKey]) {
-      //     // console.log('命中缓存: ', cacheKey)
-      //     return this.katexCache[cacheKey];
-      //   }
-      //   try {
-      //     const renderedHtml = window.katex.renderToString(trimmedContent, {
-      //       displayMode: false,
-      //       throwOnError: false
-      //     });
-      //     this.katexCache[cacheKey] = renderedHtml;
-      //     return renderedHtml;
-      //   } catch (err) {
-      //     console.error('KaTeX rendering error (inline):', err);
-      //     return match; // 发生错误时返回原始匹配
-      //   }
-      // });
-
-      // 恢复行内代码块
-      inlineCodeBlocks.forEach((block, index) => {
-        value = value.replace(`INLINE_CODE_${index}`, block);
-      });
-
-      // 恢复多行代码块
-      codeBlocks.forEach((block, index) => {
-        value = value.replace(`CODE_BLOCK_${index}`, block);
-      });
 
       // 恢复表格中的<br>标签
       tableBrPlaceholders.forEach((br, index) => {

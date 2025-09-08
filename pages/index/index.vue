@@ -48,6 +48,7 @@ onMounted(() => {
 $$
 \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi} \\quad \\text{且} \\quad \\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6} \\quad \\text{以及} \\quad \\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^n = e \\quad \\text{其中} \\quad \\nabla \\times \\vec{E} = -\\frac{\\partial \\vec{B}}{\\partial t} \\quad \\text{和} \\quad \\oint_{\\partial S} \\vec{F} \\cdot d\\vec{r} = \\iint_S (\\nabla \\times \\vec{F}) \\cdot d\\vec{A}
 $$
+
 块级复杂公式 \`const a = 1\`：
 \`\`\`
 const a = 1;
@@ -56,11 +57,17 @@ function sum(a, b) {
   return a + b;
 }
 
+$\\frac{1}{2}$
+
+$$
+\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi} \\quad \\text{且} \\quad \\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6} \\quad \\text{以及} \\quad \\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^n = e \\quad \\text{其中} \\quad \\nabla \\times \\vec{E} = -\\frac{\\partial \\vec{B}}{\\partial t} \\quad \\text{和} \\quad \\oint_{\\partial S} \\vec{F} \\cdot d\\vec{r} = \\iint_S (\\nabla \\times \\vec{F}) \\cdot d\\vec{A}
+$$
+
 console.log(sum(a, b));
 
 \`\`\`
 `);
-  }, 200);
+  }, 50);
 });
 </script>
 
