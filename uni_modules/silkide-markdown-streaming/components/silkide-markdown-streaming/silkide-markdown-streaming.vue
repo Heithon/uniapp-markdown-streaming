@@ -107,7 +107,7 @@ import MarkdownIt from "./lib/markdown-it.min.js";
 import hljs from "./lib/highlight/uni-highlight.min.js";
 import katex from "./lib/katex/katex.mjs";
 import * as smd from "./lib/smd.min.js"
-import { isTextOnlyShallow } from "./utils/index.js";
+import { isTextOnlyShallow, getCodeInfo } from "./utils/index.js";
 import MarkdownItKatex from "./lib/markdown-it-katex.js";
 // h5中直接执行脚本挂在到全局对象
 // #ifdef H5
@@ -153,15 +153,11 @@ export default {
         isTargetIdUpdated: false,
         isSourceUpdated: false,
         isShowLineUpdated: false,
-      }
+      },
+      escapeHtml: new window.MarkdownIt({}).utils.escapeHtml,
     }
   },
   mounted() {
-    // this.initMarkdownParser();
-    console.log('smd', smd.default_renderer)
-    console.log('DOMPurify', DOMPurify)
-    console.log('this.config', this.config.isPurify)
-    // this.setTargetId(this.targetId, null, this, this);
   },
   methods: {
     tryInitMarkdownParser() {
@@ -264,6 +260,49 @@ export default {
         }
       }
     },
+    highlight(str, lang) {
+      let preCode = "";
+      try {
+        preCode = window.hljs.highlightAuto(str).value;
+      } catch (err) {
+        preCode = this.escapeHtml(str);
+      }
+      const lines = preCode.split(/\n/).slice(0, -1);
+      let html = lines
+        .map((item, index) => {
+          if (item == "") {
+            return "";
+          }
+          return (
+            '<li><span class="line-num" data-line="' +
+            (index + 1) +
+            '"></span>' +
+            item +
+            "</li>"
+          );
+        })
+        .join("");
+      if (this.showLineValue) {
+        html = '<ol style="padding: 0px 30px;">' + html + "</ol>";
+      } else {
+        html = '<ol style="padding: 0px 7px;list-style:none;">' + html + "</ol>";
+      }
+      this.copyCodeData.push(str); // copyCodeData is managed by renderjs
+      let htmlCode = `<div class="markdown-wrap">`;
+      htmlCode += `<div style="color: #aaa;text-align: right;font-size: 12px;padding:8px;">`;
+      htmlCode += `${lang}<a class="copy-btn" code-data-index="${
+        this.copyCodeData.length - 1
+      }" style="margin-left: 8px;">复制代码</a>`;
+      htmlCode += `</div>`;
+      if (str.trim().length > 0) {
+        htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;"><code>${html}</code></pre>`;
+        // htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;">${html}</pre>`;
+      } else {
+        htmlCode += `<pre class="hljs" style="display: none;"></pre>`;
+      }
+      htmlCode += "</div>";
+      return htmlCode;
+    },
     /**
      * 初始化Markdown解析器
      */
@@ -280,49 +319,7 @@ export default {
         try {
         this.markdownParser = new window.MarkdownIt({
           html: true,
-          highlight: (str, lang) => {
-            let preCode = "";
-            try {
-              preCode = window.hljs.highlightAuto(str).value;
-            } catch (err) {
-              preCode = this.markdownParser.utils.escapeHtml(str);
-            }
-            const lines = preCode.split(/\n/).slice(0, -1);
-            let html = lines
-              .map((item, index) => {
-                if (item == "") {
-                  return "";
-                }
-                return (
-                  '<li><span class="line-num" data-line="' +
-                  (index + 1) +
-                  '"></span>' +
-                  item +
-                  "</li>"
-                );
-              })
-              .join("");
-            if (this.showLineValue) {
-              html = '<ol style="padding: 0px 30px;">' + html + "</ol>";
-            } else {
-              html = '<ol style="padding: 0px 7px;list-style:none;">' + html + "</ol>";
-            }
-            this.copyCodeData.push(str); // copyCodeData is managed by renderjs
-            let htmlCode = `<div class="markdown-wrap">`;
-            htmlCode += `<div style="color: #aaa;text-align: right;font-size: 12px;padding:8px;">`;
-            htmlCode += `${lang}<a class="copy-btn" code-data-index="${
-              this.copyCodeData.length - 1
-            }" style="margin-left: 8px;">复制代码</a>`;
-            htmlCode += `</div>`;
-            if (str.trim().length > 0) {
-              htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;"><code>${html}</code></pre>`;
-              // htmlCode += `<pre class="hljs" style="padding:10px 8px 0;margin-bottom:5px;overflow: auto;display: block;border-radius: 5px;">${html}</pre>`;
-            } else {
-              htmlCode += `<pre class="hljs" style="display: none;"></pre>`;
-            }
-            htmlCode += "</div>";
-            return htmlCode;
-          },
+          highlight: this.highlight,
         })
         .use(MarkdownItKatex, {
           katex: window.katex,
@@ -341,6 +338,7 @@ export default {
     renderContentSmd(chunk) {
       smd.parser_write(this.markdownParser, chunk)
       this.applyLaTeX();
+      this.applyHighlight();
     },
     renderContent() {
       const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now(); // 记录开始时间
@@ -389,7 +387,6 @@ export default {
       // 偶数个```，末尾加上\n
       if (value.split("```").length % 2) {
         let mdtext = value;
-        // console.log('mdtext: ', mdtext)
         if (mdtext[mdtext.length - 1] != "\n") {
           mdtext += "\n";
         }
@@ -398,17 +395,13 @@ export default {
             this.targetMdElement,
             this.markdownParser.renderToIncrementalDOM(mdtext)
           )
-          // htmlString = this.markdownParser.render(mdtext)
       } else {
         // 使用增量dom渲染
         IncrementalDOM.patch(
             this.targetMdElement,
             this.markdownParser.renderToIncrementalDOM(value)
           )
-        // htmlString = this.markdownParser.render(value)
       }
-
-      // this.targetMdElement.innerHTML = htmlString
 
       // 表格标签添加类名，修复表格样式
       if (this.targetMdElement) {
@@ -453,19 +446,30 @@ export default {
           return;
         }
         katex.render(el.textContent, el, {
-          displayMode: false,  // Inline mode
-          throwOnError: false  // Optional: Don't throw errors on invalid LaTeX
+          displayMode: false,
+          throwOnError: false
         });
       });
-      // Manually render block math in <equation-block> tags
       this.targetMdElement.querySelectorAll('equation-block').forEach(el => {
         if(!isTextOnlyShallow(el)) {
           return;
         }
         katex.render(el.textContent, el, {
-          displayMode: true,   // Display (block) mode
-          throwOnError: false  // Optional: Don't throw errors on invalid LaTeX
+          displayMode: true,
+          throwOnError: false
         });
+      });
+    },
+    applyHighlight() {
+      this.targetMdElement.querySelectorAll('pre').forEach(el => {
+        const res = getCodeInfo(el)
+        if(res.isPending) {
+          console.log('处理===')
+          const result = this.highlight(res.str, res.lang)
+          const newEl = document.createElement('div');
+          newEl.innerHTML = result;
+          el.replaceWith(newEl);
+        }
       });
     },
     /**
