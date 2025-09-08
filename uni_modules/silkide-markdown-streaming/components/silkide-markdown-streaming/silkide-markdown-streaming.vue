@@ -107,7 +107,7 @@ import MarkdownIt from "./lib/markdown-it.min.js";
 import hljs from "./lib/highlight/uni-highlight.min.js";
 import katex from "./lib/katex/katex.mjs";
 import * as smd from "./lib/smd.min.js"
-import { isTextOnlyShallow, getCodeInfo } from "./utils/index.js";
+import { isTextOnlyShallow, getCodeInfo, hasParent } from "./utils/index.js";
 import MarkdownItKatex from "./lib/markdown-it-katex.js";
 // h5中直接执行脚本挂在到全局对象
 // #ifdef H5
@@ -339,6 +339,7 @@ export default {
       smd.parser_write(this.markdownParser, chunk)
       this.applyLaTeX();
       this.applyHighlight();
+      this.applyTableBox();
     },
     renderContent() {
       const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now(); // 记录开始时间
@@ -464,12 +465,23 @@ export default {
       this.targetMdElement.querySelectorAll('pre').forEach(el => {
         const res = getCodeInfo(el)
         if(res.isPending) {
-          console.log('处理===')
           const result = this.highlight(res.str, res.lang)
           const newEl = document.createElement('div');
           newEl.innerHTML = result;
           el.replaceWith(newEl);
         }
+      });
+    },
+    applyTableBox() {
+      this.targetMdElement.querySelectorAll('table').forEach(el => {
+        console.log('el', el)
+        if(hasParent(el, 'table-box')) {
+          return;
+        }
+        const tableBox = document.createElement('div');
+        tableBox.classList.add('table-box');
+        el.parentNode.insertBefore(tableBox, el);
+        tableBox.appendChild(el);
       });
     },
     /**
@@ -880,6 +892,7 @@ export default {
       .table-box {
         width: 100%;
         overflow-x: auto;
+        table,
         .table {
           min-width: 100%;
           max-width: none;

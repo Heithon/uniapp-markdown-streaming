@@ -32,3 +32,16 @@ export function getCodeInfo(pre) {
     str,
   };
 }
+
+/**
+ * 检测父节点的class是否为table-box
+ * @param {Element} element - 要检测的元素
+ * @returns {boolean} 如果父节点包含table-box类则返回true
+ */
+export function hasParent(element, parentName) {
+  let parent = element.parentElement;
+  if (parent.classList.contains(parentName)) {
+    return true;
+  }
+  return false;
+}
